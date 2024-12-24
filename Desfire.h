@@ -303,6 +303,13 @@ class Desfire : public PN532
     bool CheckCardStatus(DESFireStatus e_Status);
     bool SelftestKeyChange(uint32_t u32_Application, DESFireKey* pi_DefaultKey, DESFireKey* pi_NewKeyA, DESFireKey* pi_NewKeyB);
 
+    byte SECRET_PICC_MASTER_KEY[24];
+    byte SECRET_APPLICATION_KEY[24];
+    byte SECRET_STORE_VALUE_KEY[24];
+    uint32_t CARD_APPLICATION_ID;
+    byte CARD_FILE_ID;
+    byte CARD_KEY_VERSION;
+
     byte          mu8_LastAuthKeyNo; // The last key which did a successful authetication (0xFF if not yet authenticated)
     uint32_t      mu32_LastApplication;
     DESFireKey*   mpi_SessionKey;
