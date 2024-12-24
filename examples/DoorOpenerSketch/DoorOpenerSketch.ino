@@ -223,7 +223,7 @@ void setup()
     InitReader(false);
 
     #if USE_DESFIRE
-        gi_PiccMasterKey.SetKeyData(setPiccMasterKey, sizeof(setPiccMasterKey), setCardKeyVersion);
+        gi_PiccMasterKey.SetKeyData(desfire.setPiccMasterKey(), sizeof(desfire.setPiccMasterKey()), desfire.setCardKeyVersion());
     #endif
 }
 
@@ -869,7 +869,7 @@ bool WaitForCard(kUser* pk_User, kCard* pk_Card)
 // Reads the card in the RF field.
 // In case of a Random ID card reads the real UID of the card (requires PICC authentication)
 // ATTENTION: If no card is present, this function returns true. This is not an error. (check that pk_Card->u8_UidLength > 0)
-// pk_Card->u8_KeyVersion is > 0 if a random ID card did a valid authentication with setPiccMasterKey
+// pk_Card->u8_KeyVersion is > 0 if a random ID card did a valid authentication with desfire.setPiccMasterKey()
 // pk_Card->b_PN532_Error is set true if the error comes from the PN532.
 bool ReadCard(byte u8_UID[8], kCard* pk_Card)
 {
@@ -919,7 +919,7 @@ bool IsDesfireTimeout()
     return false;
 }
 
-// b_PiccAuth = true if random ID card with successful authentication with setPiccMasterKey
+// b_PiccAuth = true if random ID card with successful authentication with desfire.setPiccMasterKey()
 void OpenDoor(uint64_t u64_ID, kCard* pk_Card, uint64_t u64_StartTick)
 {
     kUser k_User;  
@@ -946,8 +946,8 @@ void OpenDoor(uint64_t u64_ID, kCard* pk_Card, uint64_t u64_StartTick)
             {
                 // In case of a random ID card the authentication has already been done in ReadCard().
                 // But ReadCard() may also authenticate with the factory default DES key, so we must check here 
-                // that setPiccMasterKey has been used for authentication.
-                if (pk_Card->u8_KeyVersion != setCardKeyVersion)
+                // that desfire.setPiccMasterKey() has been used for authentication.
+                if (pk_Card->u8_KeyVersion != desfire.setCardKeyVersion())
                 {
                     Utils::Print("The card is not personalized.\r\n");
                     FlashLED(LED_RED, 1000);
@@ -1061,7 +1061,7 @@ void CheckOpenButton()
 
 #if USE_DESFIRE
 
-// If the card is personalized -> authenticate with setPiccMasterKey,
+// If the card is personalized -> authenticate with desfire.setPiccMasterKey(),
 // otherwise authenticate with the factory default DES key.
 bool AuthenticatePICC(byte* pu8_KeyVersion)
 {
@@ -1071,8 +1071,8 @@ bool AuthenticatePICC(byte* pu8_KeyVersion)
     if (!gi_PN532.GetKeyVersion(0, pu8_KeyVersion)) // Get version of PICC master key
         return false;
 
-    // The factory default key has version 0, while a personalized card has key version setCardKeyVersion
-    if (*pu8_KeyVersion == setCardKeyVersion)
+    // The factory default key has version 0, while a personalized card has key version desfire.setCardKeyVersion()
+    if (*pu8_KeyVersion == desfire.setCardKeyVersion())
     {
         if (!gi_PN532.Authenticate(0, &gi_PiccMasterKey))
             return false;
@@ -1117,7 +1117,7 @@ bool GenerateDesfireSecrets(kUser* pk_User, DESFireKey* pi_AppMasterKey, byte u8
         return false;
 
     // If the key is an AES key only the first 16 bytes will be used
-    if (!pi_AppMasterKey->SetKeyData(u8_AppMasterKey, sizeof(u8_AppMasterKey), setCardKeyVersion))
+    if (!pi_AppMasterKey->SetKeyData(u8_AppMasterKey, sizeof(u8_AppMasterKey), desfire.setCardKeyVersion()))
         return false;
 
     return true;
@@ -1138,11 +1138,11 @@ bool CheckDesfireSecret(kUser* pk_User)
     if (!gi_PN532.GetKeyVersion(0, &u8_Version))
         return false;
 
-    // The factory default key has version 0, while a personalized card has key version setCardKeyVersion
-    if (u8_Version != setCardKeyVersion)
+    // The factory default key has version 0, while a personalized card has key version desfire.setCardKeyVersion()
+    if (u8_Version != desfire.setCardKeyVersion())
         return false;
 
-    if (!gi_PN532.SelectApplication(setCardApplicationId))
+    if (!gi_PN532.SelectApplication(desfire.setCardApplicationId()))
         return false;
 
     if (!gi_PN532.Authenticate(0, &i_AppMasterKey))
@@ -1150,7 +1150,7 @@ bool CheckDesfireSecret(kUser* pk_User)
 
     // Read the 16 byte secret from the card
     byte u8_FileData[16];
-    if (!gi_PN532.ReadFileData(setCardFileId, 0, 16, u8_FileData))
+    if (!gi_PN532.ReadFileData(desfire.setCardFileId(), 0, 16, u8_FileData))
         return false;
 
     if (memcmp(u8_FileData, u8_StoreValue, 16) != 0)
@@ -1159,14 +1159,14 @@ bool CheckDesfireSecret(kUser* pk_User)
     return true;
 }
 
-// Store the setPiccMasterKey on the card
+// Store the desfire.setPiccMasterKey() on the card
 bool ChangePiccMasterKey()
 {
     byte u8_KeyVersion;
     if (!AuthenticatePICC(&u8_KeyVersion))
         return false;
 
-    if (u8_KeyVersion != setCardKeyVersion) // empty card
+    if (u8_KeyVersion != desfire.setCardKeyVersion()) // empty card
     {
         // Store the secret PICC master key on the card.
         if (!gi_PN532.ChangeKey(0, &gi_PiccMasterKey, NULL))
@@ -1185,7 +1185,7 @@ bool ChangePiccMasterKey()
 // This function requires previous authentication with PICC master key.
 bool StoreDesfireSecret(kUser* pk_User)
 {
-    if (setCardApplicationId == 0x000000 || setCardKeyVersion == 0)
+    if (desfire.setCardApplicationId() == 0x000000 || desfire.setCardKeyVersion() == 0)
         return false; // severe errors in Secrets.h -> abort
   
     DESFIRE_KEY_TYPE i_AppMasterKey;
@@ -1194,15 +1194,15 @@ bool StoreDesfireSecret(kUser* pk_User)
         return false;
 
     // First delete the application (The current application master key may have changed after changing the user name for that card)
-    if (!gi_PN532.DeleteApplicationIfExists(setCardApplicationId))
+    if (!gi_PN532.DeleteApplicationIfExists(desfire.setCardApplicationId()))
         return false;
 
     // Create the new application with default settings (we must still have permission to change the application master key later)
-    if (!gi_PN532.CreateApplication(setCardApplicationId, KS_FACTORY_DEFAULT, 1, i_AppMasterKey.GetKeyType()))
+    if (!gi_PN532.CreateApplication(desfire.setCardApplicationId(), KS_FACTORY_DEFAULT, 1, i_AppMasterKey.GetKeyType()))
         return false;
 
     // After this command all the following commands will apply to the application (rather than the PICC)
-    if (!gi_PN532.SelectApplication(setCardApplicationId))
+    if (!gi_PN532.SelectApplication(desfire.setCardApplicationId()))
         return false;
 
     // Authentication with the application's master key is required
@@ -1231,11 +1231,11 @@ bool StoreDesfireSecret(kUser* pk_User)
     k_Permis.e_WriteAccess        = AR_KEY0;
     k_Permis.e_ReadAndWriteAccess = AR_KEY0;
     k_Permis.e_ChangeAccess       = AR_KEY0;
-    if (!gi_PN532.CreateStdDataFile(setCardFileId, &k_Permis, 16))
+    if (!gi_PN532.CreateStdDataFile(desfire.setCardFileId(), &k_Permis, 16))
         return false;
 
     // Write the StoreValue into that file
-    if (!gi_PN532.WriteFileData(setCardFileId, 0, 16, u8_StoreValue))
+    if (!gi_PN532.WriteFileData(desfire.setCardFileId(), 0, 16, u8_StoreValue))
         return false;       
   
     return true;
@@ -1269,7 +1269,7 @@ bool RestoreDesfireCard()
 
     // An error in DeleteApplication must not abort. 
     // The key change below is more important and must always be executed.
-    bool b_Success = gi_PN532.DeleteApplicationIfExists(setCardApplicationId);
+    bool b_Success = gi_PN532.DeleteApplicationIfExists(desfire.setCardApplicationId());
     if (!b_Success)
     {
         // After any error the card demands a new authentication
