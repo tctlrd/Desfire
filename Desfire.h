@@ -256,12 +256,19 @@ class Desfire : public PN532
 {
  public:
     Desfire();
+    void setPiccMasterKey(const byte* key);
+    void setApplicationKey(const byte* key);
+    void setStoreValueKey(const byte* key);
+    void setCardApplicationId(uint32_t id);
+    void setCardFileId(byte id);
+    void setCardKeyVersion(byte version);
+    // ---------------------
     bool GetCardVersion(DESFireCardVersion* pk_Version);
     bool FormatCard();
     bool EnableRandomIDForever();
     bool GetRealCardID(byte u8_UID[7]);
     bool GetFreeMemory(uint32_t* pu32_Memory);
-    // ---------------------    
+    // ---------------------
     bool Authenticate (byte u8_KeyNo, DESFireKey* pi_Key);
     bool ChangeKey    (byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKey);
     bool GetKeyVersion(byte u8_KeyNo, byte* pu8_Version);
