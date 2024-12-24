@@ -32,10 +32,10 @@
  */
 
 #include "Desfire.h"
-#include "Secrets.h"
 
 Desfire::Desfire() 
     : mi_CmacBuffer(mu8_CmacBuffer_Data, sizeof(mu8_CmacBuffer_Data))
+
 {
     mpi_SessionKey       = NULL;
     mu8_LastAuthKeyNo    = NOT_AUTHENTICATED;
@@ -47,6 +47,30 @@ Desfire::Desfire()
     DES2_DEFAULT_KEY.SetKeyData(ZERO_KEY,  8, 0); // simple DES
     DES3_DEFAULT_KEY.SetKeyData(ZERO_KEY, 24, 0); // triple DES
      AES_DEFAULT_KEY.SetKeyData(ZERO_KEY, 16, 0);
+}
+
+void Desfire::setPiccMasterKey(const byte* key) {
+    memcpy(SECRET_PICC_MASTER_KEY, key, 24);
+}
+
+void Desfire::setApplicationKey(const byte* key) {
+    memcpy(SECRET_APPLICATION_KEY, key, 24);
+}
+
+void Desfire::setStoreValueKey(const byte* key) {
+    memcpy(SECRET_STORE_VALUE_KEY, key, 24);
+}
+
+void Desfire::setCardApplicationId(uint32_t id) {
+    CARD_APPLICATION_ID = id;
+}
+
+void Desfire::setCardFileId(byte id) {
+    CARD_FILE_ID = id;
+}
+
+void Desfire::setCardKeyVersion(byte version) {
+    CARD_KEY_VERSION = version;
 }
 
 // Whenever the RF field is switched off, these variables must be reset
