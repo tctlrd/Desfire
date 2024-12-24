@@ -223,7 +223,7 @@ void setup()
     InitReader(false);
 
     #if USE_DESFIRE
-        gi_PiccMasterKey.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
+        gi_PiccMasterKey.SetKeyData(setPiccMasterKey, sizeof(setPiccMasterKey), setCardKeyVersion);
     #endif
 }
 
@@ -869,7 +869,7 @@ bool WaitForCard(kUser* pk_User, kCard* pk_Card)
 // Reads the card in the RF field.
 // In case of a Random ID card reads the real UID of the card (requires PICC authentication)
 // ATTENTION: If no card is present, this function returns true. This is not an error. (check that pk_Card->u8_UidLength > 0)
-// pk_Card->u8_KeyVersion is > 0 if a random ID card did a valid authentication with SECRET_PICC_MASTER_KEY
+// pk_Card->u8_KeyVersion is > 0 if a random ID card did a valid authentication with setPiccMasterKey
 // pk_Card->b_PN532_Error is set true if the error comes from the PN532.
 bool ReadCard(byte u8_UID[8], kCard* pk_Card)
 {
@@ -919,7 +919,7 @@ bool IsDesfireTimeout()
     return false;
 }
 
-// b_PiccAuth = true if random ID card with successful authentication with SECRET_PICC_MASTER_KEY
+// b_PiccAuth = true if random ID card with successful authentication with setPiccMasterKey
 void OpenDoor(uint64_t u64_ID, kCard* pk_Card, uint64_t u64_StartTick)
 {
     kUser k_User;  
@@ -946,8 +946,8 @@ void OpenDoor(uint64_t u64_ID, kCard* pk_Card, uint64_t u64_StartTick)
             {
                 // In case of a random ID card the authentication has already been done in ReadCard().
                 // But ReadCard() may also authenticate with the factory default DES key, so we must check here 
-                // that SECRET_PICC_MASTER_KEY has been used for authentication.
-                if (pk_Card->u8_KeyVersion != CARD_KEY_VERSION)
+                // that setPiccMasterKey has been used for authentication.
+                if (pk_Card->u8_KeyVersion != setCardKeyVersion)
                 {
                     Utils::Print("The card is not personalized.\r\n");
                     FlashLED(LED_RED, 1000);
@@ -1061,7 +1061,7 @@ void CheckOpenButton()
 
 #if USE_DESFIRE
 
-// If the card is personalized -> authenticate with SECRET_PICC_MASTER_KEY,
+// If the card is personalized -> authenticate with setPiccMasterKey,
 // otherwise authenticate with the factory default DES key.
 bool AuthenticatePICC(byte* pu8_KeyVersion)
 {
@@ -1071,8 +1071,8 @@ bool AuthenticatePICC(byte* pu8_KeyVersion)
     if (!gi_PN532.GetKeyVersion(0, pu8_KeyVersion)) // Get version of PICC master key
         return false;
 
-    // The factory default key has version 0, while a personalized card has key version CARD_KEY_VERSION
-    if (*pu8_KeyVersion == CARD_KEY_VERSION)
+    // The factory default key has version 0, while a personalized card has key version setCardKeyVersion
+    if (*pu8_KeyVersion == setCardKeyVersion)
     {
         if (!gi_PN532.Authenticate(0, &gi_PiccMasterKey))
             return false;
@@ -1108,16 +1108,16 @@ bool GenerateDesfireSecrets(kUser* pk_User, DESFireKey* pi_AppMasterKey, byte u8
     byte u8_AppMasterKey[24];
 
     DES i_3KDes;
-    if (!i_3KDes.SetKeyData(SECRET_APPLICATION_KEY, sizeof(SECRET_APPLICATION_KEY), 0) || // set a 24 byte key (168 bit)
+    if (!i_3KDes.SetKeyData(setApplicationKey, sizeof(setApplicationKey), 0) || // set a 24 byte key (168 bit)
         !i_3KDes.CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_AppMasterKey, u8_Data, 24))
         return false;
     
-    if (!i_3KDes.SetKeyData(SECRET_STORE_VALUE_KEY, sizeof(SECRET_STORE_VALUE_KEY), 0) || // set a 24 byte key (168 bit)
+    if (!i_3KDes.SetKeyData(setStoreValueKey, sizeof(setStoreValueKey), 0) || // set a 24 byte key (168 bit)
         !i_3KDes.CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_StoreValue, u8_Data, 16))
         return false;
 
     // If the key is an AES key only the first 16 bytes will be used
-    if (!pi_AppMasterKey->SetKeyData(u8_AppMasterKey, sizeof(u8_AppMasterKey), CARD_KEY_VERSION))
+    if (!pi_AppMasterKey->SetKeyData(u8_AppMasterKey, sizeof(u8_AppMasterKey), setCardKeyVersion))
         return false;
 
     return true;
@@ -1138,11 +1138,11 @@ bool CheckDesfireSecret(kUser* pk_User)
     if (!gi_PN532.GetKeyVersion(0, &u8_Version))
         return false;
 
-    // The factory default key has version 0, while a personalized card has key version CARD_KEY_VERSION
-    if (u8_Version != CARD_KEY_VERSION)
+    // The factory default key has version 0, while a personalized card has key version setCardKeyVersion
+    if (u8_Version != setCardKeyVersion)
         return false;
 
-    if (!gi_PN532.SelectApplication(CARD_APPLICATION_ID))
+    if (!gi_PN532.SelectApplication(setCardApplicationId))
         return false;
 
     if (!gi_PN532.Authenticate(0, &i_AppMasterKey))
@@ -1150,7 +1150,7 @@ bool CheckDesfireSecret(kUser* pk_User)
 
     // Read the 16 byte secret from the card
     byte u8_FileData[16];
-    if (!gi_PN532.ReadFileData(CARD_FILE_ID, 0, 16, u8_FileData))
+    if (!gi_PN532.ReadFileData(setCardFileId, 0, 16, u8_FileData))
         return false;
 
     if (memcmp(u8_FileData, u8_StoreValue, 16) != 0)
@@ -1159,14 +1159,14 @@ bool CheckDesfireSecret(kUser* pk_User)
     return true;
 }
 
-// Store the SECRET_PICC_MASTER_KEY on the card
+// Store the setPiccMasterKey on the card
 bool ChangePiccMasterKey()
 {
     byte u8_KeyVersion;
     if (!AuthenticatePICC(&u8_KeyVersion))
         return false;
 
-    if (u8_KeyVersion != CARD_KEY_VERSION) // empty card
+    if (u8_KeyVersion != setCardKeyVersion) // empty card
     {
         // Store the secret PICC master key on the card.
         if (!gi_PN532.ChangeKey(0, &gi_PiccMasterKey, NULL))
@@ -1185,7 +1185,7 @@ bool ChangePiccMasterKey()
 // This function requires previous authentication with PICC master key.
 bool StoreDesfireSecret(kUser* pk_User)
 {
-    if (CARD_APPLICATION_ID == 0x000000 || CARD_KEY_VERSION == 0)
+    if (setCardApplicationId == 0x000000 || setCardKeyVersion == 0)
         return false; // severe errors in Secrets.h -> abort
   
     DESFIRE_KEY_TYPE i_AppMasterKey;
@@ -1194,15 +1194,15 @@ bool StoreDesfireSecret(kUser* pk_User)
         return false;
 
     // First delete the application (The current application master key may have changed after changing the user name for that card)
-    if (!gi_PN532.DeleteApplicationIfExists(CARD_APPLICATION_ID))
+    if (!gi_PN532.DeleteApplicationIfExists(setCardApplicationId))
         return false;
 
     // Create the new application with default settings (we must still have permission to change the application master key later)
-    if (!gi_PN532.CreateApplication(CARD_APPLICATION_ID, KS_FACTORY_DEFAULT, 1, i_AppMasterKey.GetKeyType()))
+    if (!gi_PN532.CreateApplication(setCardApplicationId, KS_FACTORY_DEFAULT, 1, i_AppMasterKey.GetKeyType()))
         return false;
 
     // After this command all the following commands will apply to the application (rather than the PICC)
-    if (!gi_PN532.SelectApplication(CARD_APPLICATION_ID))
+    if (!gi_PN532.SelectApplication(setCardApplicationId))
         return false;
 
     // Authentication with the application's master key is required
@@ -1231,11 +1231,11 @@ bool StoreDesfireSecret(kUser* pk_User)
     k_Permis.e_WriteAccess        = AR_KEY0;
     k_Permis.e_ReadAndWriteAccess = AR_KEY0;
     k_Permis.e_ChangeAccess       = AR_KEY0;
-    if (!gi_PN532.CreateStdDataFile(CARD_FILE_ID, &k_Permis, 16))
+    if (!gi_PN532.CreateStdDataFile(setCardFileId, &k_Permis, 16))
         return false;
 
     // Write the StoreValue into that file
-    if (!gi_PN532.WriteFileData(CARD_FILE_ID, 0, 16, u8_StoreValue))
+    if (!gi_PN532.WriteFileData(setCardFileId, 0, 16, u8_StoreValue))
         return false;       
   
     return true;
@@ -1269,7 +1269,7 @@ bool RestoreDesfireCard()
 
     // An error in DeleteApplication must not abort. 
     // The key change below is more important and must always be executed.
-    bool b_Success = gi_PN532.DeleteApplicationIfExists(CARD_APPLICATION_ID);
+    bool b_Success = gi_PN532.DeleteApplicationIfExists(setCardApplicationId);
     if (!b_Success)
     {
         // After any error the card demands a new authentication
